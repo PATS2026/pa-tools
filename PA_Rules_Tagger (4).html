@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PA Rules Tagger — Patrick Accounting</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400;500&display=swap');
+
+:root {
+  --cream: #f7f3ec;
+  --warm-white: #fdfaf6;
+  --ink: #1e1a14;
+  --ink-mid: #5c5043;
+  --ink-light: #9c8e7e;
+  --rust: #8b3a2a;
+  --rust-light: #b85c47;
+  --rust-pale: #f2e8e5;
+  --gold: #c4923a;
+  --gold-pale: #fdf3e3;
+  --green: #2d6a4a;
+  --green-pale: #e8f4ed;
+  --border: #ddd5c8;
+  --border-dark: #c4b8a8;
+  --shadow: 0 2px 12px rgba(30,26,20,0.08);
+  --shadow-lg: 0 8px 32px rgba(30,26,20,0.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Crimson Pro', Georgia, serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    radial-gradient(ellipse at 20% 50%, rgba(196,146,58,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, rgba(139,58,42,0.04) 0%, transparent 60%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+header {
+  background: var(--ink);
+  color: var(--cream);
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  height: 64px;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.logo-mark {
+  width: 36px; height: 36px;
+  border: 1.5px solid rgba(247,243,236,0.25);
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace;
+  font-size: 13px; font-weight: 500;
+  color: var(--gold); flex-shrink: 0;
+}
+
+header h1 { font-size: 17px; font-weight: 400; color: var(--cream); }
+header h1 span { color: rgba(247,243,236,0.45); margin: 0 8px; font-weight: 300; }
+
+.header-tag {
+  margin-left: auto;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; color: var(--gold);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid rgba(196,146,58,0.35);
+  padding: 3px 10px; border-radius: 2px;
+}
+
+main {
+  flex: 1;
+  max-width: 680px; width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  position: relative; z-index: 1;
+}
+
+.intro { margin-bottom: 36px; text-align: center; }
+.intro h2 { font-size: 28px; font-weight: 300; margin-bottom: 10px; letter-spacing: -0.02em; }
+.intro h2 em { font-style: italic; color: var(--rust); }
+.intro p { font-size: 17px; color: var(--ink-mid); line-height: 1.6; font-weight: 300; }
+
+#drop-zone {
+  border: 2px dashed var(--border-dark);
+  border-radius: 8px;
+  background: var(--warm-white);
+  padding: 56px 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 24px;
+}
+#drop-zone:hover, #drop-zone.dragover {
+  border-color: var(--rust); background: var(--rust-pale); box-shadow: var(--shadow);
+}
+
+/* Input hidden off-screen — triggered via JS click */
+#file-input {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.drop-icon { font-size: 40px; margin-bottom: 14px; display: block; opacity: 0.6; }
+#drop-zone h3 { font-size: 20px; font-weight: 400; margin-bottom: 6px; }
+#drop-zone p { font-size: 15px; color: var(--ink-light); font-style: italic; }
+.file-types { margin-top: 14px; display: flex; gap: 8px; justify-content: center; }
+.chip {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--ink-mid); background: var(--cream);
+  border: 1px solid var(--border); border-radius: 3px; padding: 3px 10px;
+}
+
+#file-info {
+  display: none; background: var(--gold-pale);
+  border: 1.5px solid var(--gold); border-radius: 8px;
+  padding: 16px 20px; align-items: center; gap: 14px; margin-bottom: 24px;
+}
+#file-info.visible { display: flex; }
+.file-icon { font-size: 28px; flex-shrink: 0; }
+.file-details { flex: 1; min-width: 0; }
+#file-name {
+  font-family: 'DM Mono', monospace; font-size: 13px; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#file-meta { font-size: 14px; color: var(--ink-mid); margin-top: 2px; font-style: italic; }
+#btn-clear {
+  background: none; border: 1px solid var(--border-dark); border-radius: 4px;
+  padding: 5px 12px; font-family: 'Crimson Pro', serif; font-size: 14px;
+  cursor: pointer; color: var(--ink-mid); flex-shrink: 0; transition: all 0.15s;
+}
+#btn-clear:hover { border-color: var(--rust); color: var(--rust); }
+
+#btn-process {
+  width: 100%; background: var(--rust); color: white; border: none;
+  border-radius: 8px; padding: 18px;
+  font-family: 'Crimson Pro', serif; font-size: 19px; font-weight: 400;
+  letter-spacing: 0.02em; cursor: pointer; transition: all 0.2s;
+  display: none; align-items: center; justify-content: center; gap: 10px;
+}
+#btn-process.visible { display: flex; }
+#btn-process:hover { background: var(--rust-light); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+#btn-process:active { transform: translateY(0); }
+
+#results { display: none; margin-top: 28px; animation: fadeUp 0.3s ease; }
+#results.visible { display: block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+
+.results-card {
+  background: var(--green-pale); border: 1.5px solid var(--green);
+  border-radius: 8px; padding: 24px 28px; margin-bottom: 20px;
+}
+.results-card h3 { font-size: 20px; font-weight: 400; color: var(--green); margin-bottom: 16px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px; }
+.stat {
+  background: white; border-radius: 6px; padding: 14px 16px;
+  text-align: center; border: 1px solid rgba(45,106,74,0.15);
+}
+.stat-num {
+  font-family: 'DM Mono', monospace; font-size: 28px; font-weight: 500;
+  color: var(--ink); display: block; line-height: 1; margin-bottom: 4px;
+}
+.stat-num.highlight { color: var(--green); }
+.stat-label { font-size: 13px; color: var(--ink-light); font-style: italic; }
+
+.rule-list-toggle {
+  background: none; border: none; font-family: 'Crimson Pro', serif;
+  font-size: 15px; color: var(--green); cursor: pointer;
+  text-decoration: underline; text-underline-offset: 3px; padding: 0;
+}
+.rule-list {
+  display: none; margin-top: 12px; max-height: 220px; overflow-y: auto;
+  border: 1px solid rgba(45,106,74,0.2); border-radius: 6px; background: white;
+}
+.rule-list.open { display: block; }
+.rule-item {
+  padding: 8px 14px; border-bottom: 1px solid rgba(45,106,74,0.08);
+  font-size: 13px; font-family: 'DM Mono', monospace; color: var(--ink-mid);
+  display: flex; align-items: center; gap: 8px;
+}
+.rule-item:last-child { border-bottom: none; }
+.badge { font-size: 10px; padding: 1px 6px; border-radius: 3px; flex-shrink: 0; white-space: nowrap; }
+.badge.added { background: #dcfce7; color: #166534; }
+.badge.fixed  { background: #fef9c3; color: #854d0e; }
+
+#btn-download {
+  width: 100%; background: var(--green); color: white; border: none;
+  border-radius: 8px; padding: 16px; font-family: 'Crimson Pro', serif;
+  font-size: 18px; cursor: pointer; transition: all 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+#btn-download:hover { background: #236b50; transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+
+.instructions {
+  margin-top: 40px; padding: 24px 28px;
+  background: var(--warm-white); border: 1px solid var(--border); border-radius: 8px;
+}
+.instructions h4 {
+  font-size: 12px; font-weight: 500; color: var(--ink); margin-bottom: 16px;
+  letter-spacing: 0.1em; text-transform: uppercase; font-family: 'DM Mono', monospace;
+}
+.step { display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
+.step-num {
+  width: 22px; height: 22px; background: var(--rust); color: white;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500;
+  flex-shrink: 0; margin-top: 2px;
+}
+.step p { font-size: 16px; color: var(--ink-mid); line-height: 1.5; }
+.step p strong { color: var(--ink); font-weight: 600; }
+.note {
+  margin-top: 16px; padding: 12px 16px;
+  background: var(--gold-pale); border-left: 3px solid var(--gold);
+  border-radius: 0 4px 4px 0; font-size: 14px; color: var(--ink-mid);
+  font-style: italic; line-height: 1.6;
+}
+
+footer {
+  text-align: center; padding: 20px;
+  font-family: 'DM Mono', monospace; font-size: 11px; color: var(--ink-light);
+  letter-spacing: 0.06em; position: relative; z-index: 1;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">PA</div>
+  <h1>Patrick Accounting <span>·</span> QBO Rules Tagger</h1>
+  <div class="header-tag">Internal Tool</div>
+</header>
+
+<main>
+  <div class="intro">
+    <h2>Clean your rules for <em>import</em></h2>
+    <p>Drop in any QBO bank feed rules export.<br>Every rule gets stamped with <strong>- [PA]</strong> in the memo field — ready to reimport.</p>
+  </div>
+
+  <input type="file" id="file-input" accept=".xls,.xlsx" />
+  <div id="drop-zone">
+    <span class="drop-icon">📂</span>
+    <h3>Drop your rules export here</h3>
+    <p>or click to browse</p>
+    <div class="file-types">
+      <span class="chip">.xls</span>
+      <span class="chip">.xlsx</span>
+    </div>
+  </div>
+
+  <div id="file-info">
+    <span class="file-icon">📊</span>
+    <div class="file-details">
+      <div id="file-name"></div>
+      <div id="file-meta"></div>
+    </div>
+    <button id="btn-clear">✕ Clear</button>
+  </div>
+
+  <button id="btn-process">⚡ Tag All Rules with - [PA]</button>
+
+  <div id="results">
+    <div class="results-card">
+      <h3>✅ Processing complete</h3>
+      <div class="stat-grid">
+        <div class="stat">
+          <span class="stat-num" id="stat-total">0</span>
+          <span class="stat-label">Total rules</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num highlight" id="stat-changed">0</span>
+          <span class="stat-label">Updated</span>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="stat-ok">0</span>
+          <span class="stat-label">Already correct</span>
+        </div>
+      </div>
+      <button class="rule-list-toggle" id="toggle-list">Show changed rules ▾</button>
+      <div class="rule-list" id="rule-list"></div>
+    </div>
+    <button id="btn-download">⬇ Download Import File</button>
+  </div>
+
+  <div class="instructions">
+    <h4>How to use</h4>
+    <div class="step">
+      <div class="step-num">1</div>
+      <p>In QBO, go to <strong>Banking → Rules</strong> and export the client's rules as an <strong>.xls file</strong>.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <p>Drop that file here (or click to browse). Every rule gets <strong>- [PA]</strong> as the memo — anything else gets overwritten.</p>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <p>Download the processed file, then reimport via <strong>Banking → Rules → Import</strong>.</p>
+    </div>
+    <div class="note">
+      ⚠ Before importing: go to <strong>Settings → Advanced → Chart of Accounts</strong> and <strong>temporarily turn off account numbers</strong>. Re-enable after the import. This ensures QBO matches categories correctly.
+    </div>
+  </div>
+</main>
+
+<footer>PATRICK ACCOUNTING &amp; TAX SERVICES — INTERNAL USE ONLY</footer>
+
+<script>
+let workbook = null;
+let processedBlob = null;
+let originalFilename = '';
+
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const fileInfo   = document.getElementById('file-info');
+const btnClear   = document.getElementById('btn-clear');
+const btnProcess = document.getElementById('btn-process');
+const results    = document.getElementById('results');
+const toggleList = document.getElementById('toggle-list');
+const ruleList   = document.getElementById('rule-list');
+const btnDl      = document.getElementById('btn-download');
+
+// Click on drop zone opens file picker
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('dragover');
+});
+dropZone.addEventListener('dragleave', e => {
+  if (!dropZone.contains(e.relatedTarget)) {
+    dropZone.classList.remove('dragover');
+  }
+});
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+
+// File picker via the input overlay
+fileInput.addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+btnClear.addEventListener('click', reset);
+
+function loadFile(file) {
+  if (!file.name.match(/\.(xls|xlsx)$/i)) {
+    alert('Please upload an .xls or .xlsx file.');
+    return;
+  }
+  originalFilename = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      workbook = XLSX.read(data, { type: 'array' });
+      const ws = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      const count = rows.filter((r, i) => i > 0 && r[0]).length;
+      document.getElementById('file-name').textContent = file.name;
+      document.getElementById('file-meta').textContent = count + ' rule' + (count !== 1 ? 's' : '') + ' found';
+      fileInfo.classList.add('visible');
+      dropZone.style.display = 'none';
+      btnProcess.classList.add('visible');
+      results.classList.remove('visible');
+      processedBlob = null;
+    } catch(err) {
+      alert('Could not read this file. Make sure it is a valid QBO rules export.');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function enforcePA(outputJson) {
+  try {
+    const obj = JSON.parse(outputJson);
+    const actions = obj.ruleActions || [];
+    const pa = actions.find(a => a.actionType === 9);
+    if (pa) {
+      const old = String(pa.value || '').trim();
+      if (old === '- [PA]') return { json: outputJson, changed: false };
+      pa.value = '- [PA]';
+      return { json: JSON.stringify(obj), changed: true, was: old || '(empty)' };
+    } else {
+      actions.push({ actionType: 9, value: '- [PA]' });
+      obj.ruleActions = actions;
+      return { json: JSON.stringify(obj), changed: true, was: '(none)' };
+    }
+  } catch {
+    return { json: outputJson, changed: false };
+  }
+}
+
+btnProcess.addEventListener('click', () => {
+  if (!workbook) return;
+  const sheetName = workbook.SheetNames[0];
+  const ws = workbook.Sheets[sheetName];
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+  let total = 0, changed = 0, ok = 0;
+  const log = [];
+
+  const newRows = rows.map((row, i) => {
+    if (i === 0) return row;
+    const [name, cond, out] = row;
+    if (!name && !cond && !out) return row;
+    total++;
+    if (out) {
+      const r = enforcePA(out);
+      if (r.changed) {
+        changed++;
+        log.push({ name: name || '(unnamed)', type: r.was === '(none)' ? 'added' : 'fixed' });
+        return [name, cond, r.json];
+      } else { ok++; }
+    } else { ok++; }
+    return row;
+  });
+
+  // Build sheet manually using cell objects so long JSON strings (>255 chars)
+  // are written correctly — aoa_to_sheet hits XLS's 255-char cell limit
+  const newWs = {};
+  let maxCol = 0;
+  newRows.forEach((row, r) => {
+    row.forEach((val, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      newWs[ref] = { t: 's', v: String(val == null ? '' : val) };
+      if (c > maxCol) maxCol = c;
+    });
+  });
+  newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: newRows.length - 1, c: maxCol } });
+  workbook.Sheets[sheetName] = newWs;
+
+  // Output as xlsx — no cell length limits, QBO accepts both xls and xlsx
+  const out = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  processedBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+  document.getElementById('stat-total').textContent   = total;
+  document.getElementById('stat-changed').textContent = changed;
+  document.getElementById('stat-ok').textContent      = ok;
+
+  ruleList.innerHTML = log.length === 0
+    ? '<div class="rule-item">All rules were already correctly tagged.</div>'
+    : log.map(r =>
+        `<div class="rule-item"><span class="badge ${r.type}">${r.type === 'added' ? '+ added' : '✎ fixed'}</span>${esc(r.name)}</div>`
+      ).join('');
+
+  const base = originalFilename.replace(/\.(xls|xlsx)$/i, '');
+  btnDl.dataset.fn = base + '_PA_Tagged.xlsx';
+  results.classList.add('visible');
+  btnProcess.style.display = 'none';
+});
+
+btnDl.addEventListener('click', () => {
+  if (!processedBlob) return;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(processedBlob);
+  a.download = btnDl.dataset.fn || 'rules_PA_Tagged.xlsx';
+  a.click();
+});
+
+toggleList.addEventListener('click', () => {
+  ruleList.classList.toggle('open');
+  toggleList.textContent = ruleList.classList.contains('open')
+    ? 'Hide changed rules ▴'
+    : 'Show changed rules ▾';
+});
+
+function reset() {
+  workbook = null; processedBlob = null; originalFilename = '';
+  fileInfo.classList.remove('visible');
+  dropZone.style.display = '';
+  btnProcess.classList.remove('visible'); btnProcess.style.display = '';
+  results.classList.remove('visible'); ruleList.classList.remove('open');
+  fileInput.value = '';
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>
