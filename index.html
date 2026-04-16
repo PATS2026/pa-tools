@@ -452,9 +452,10 @@ btnProcess.addEventListener('click', () => {
   newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: newRows.length - 1, c: maxCol } });
   workbook.Sheets[sheetName] = newWs;
 
-  // Output as biff8 (.xls) — QBO only accepts .xls for rules import.
-  // Long strings are safe because we write explicit 's' cells via SST.
-  const out = XLSX.write(workbook, { bookType: 'biff8', type: 'array' });
+  // Output as xls with bookSST:true — writes proper BIFF8 binary format
+  // (d0cf11e0 magic bytes) with strings stored in the Shared String Table,
+  // which supports up to 32,767 chars per cell. No 255-char truncation.
+  const out = XLSX.write(workbook, { bookType: 'xls', type: 'array', bookSST: true });
   processedBlob = new Blob([out], { type: 'application/vnd.ms-excel' });
 
   document.getElementById('stat-total').textContent   = total;
