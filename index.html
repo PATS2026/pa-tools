@@ -436,23 +436,26 @@ btnProcess.addEventListener('click', () => {
     return row;
   });
 
-  // Build sheet manually using cell objects so long JSON strings (>255 chars)
-  // are written correctly — aoa_to_sheet hits XLS's 255-char cell limit
+  // Build sheet using explicit cell objects with type 's' (string).
+  // biff8 supports long strings via SST — the 255-char limit only hits
+  // when aoa_to_sheet infers types automatically. Explicit 's' cells are safe.
   const newWs = {};
   let maxCol = 0;
   newRows.forEach((row, r) => {
     row.forEach((val, c) => {
       const ref = XLSX.utils.encode_cell({ r, c });
-      newWs[ref] = { t: 's', v: String(val == null ? '' : val) };
+      const s = String(val == null ? '' : val);
+      newWs[ref] = { t: 's', v: s, r: s, h: s };
       if (c > maxCol) maxCol = c;
     });
   });
   newWs['!ref'] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: newRows.length - 1, c: maxCol } });
   workbook.Sheets[sheetName] = newWs;
 
-  // Output as xlsx — no cell length limits, QBO accepts both xls and xlsx
-  const out = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  processedBlob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  // Output as biff8 (.xls) — QBO only accepts .xls for rules import.
+  // Long strings are safe because we write explicit 's' cells via SST.
+  const out = XLSX.write(workbook, { bookType: 'biff8', type: 'array' });
+  processedBlob = new Blob([out], { type: 'application/vnd.ms-excel' });
 
   document.getElementById('stat-total').textContent   = total;
   document.getElementById('stat-changed').textContent = changed;
@@ -465,7 +468,7 @@ btnProcess.addEventListener('click', () => {
       ).join('');
 
   const base = originalFilename.replace(/\.(xls|xlsx)$/i, '');
-  btnDl.dataset.fn = base + '_PA_Tagged.xlsx';
+  btnDl.dataset.fn = base + '_PA_Tagged.xls';
   results.classList.add('visible');
   btnProcess.style.display = 'none';
 });
